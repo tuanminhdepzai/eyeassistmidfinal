@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Bone Scanner - Realistic Hand</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head><body>
+<pre id="output">Scanning Realistic Hand.glb...</pre>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const loader = new GLTFLoader();
+loader.load('./Realistic Hand.glb', (gltf) => {
+  const lines = [];
+  lines.push('=== Realistic Hand.glb Structure ===\n');
+  
+  // Tree view
+  function printTree(obj, indent = 0) {
+    const prefix = '  '.repeat(indent);
+    let type = '📦 OBJ';
+    if (obj.isBone) type = '🦴 BONE';
+    else if (obj.isSkinnedMesh) type = '🎭 SKINNED';
+    else if (obj.isMesh) type = '🔷 MESH';
+    const rot = `rot(${obj.rotation.x.toFixed(3)}, ${obj.rotation.y.toFixed(3)}, ${obj.rotation.z.toFixed(3)})`;
+    lines.push(`${prefix}${type} "${obj.name}" ${rot}`);
+    obj.children.forEach(c => printTree(c, indent + 1));
+  }
+  printTree(gltf.scene);
+
+  // Skeleton bones
+  gltf.scene.traverse(child => {
+    if (child.isSkinnedMesh && child.skeleton) {
+      lines.push('\n=== Skeleton Bones ===');
+      child.skeleton.bones.forEach((b, i) => {
+        lines.push(`  [${i}] "${b.name}" parent="${b.parent?.name || 'none'}"`);
+      });
+    }
+  });
+
+  // Meshes detail
+  lines.push('\n=== Mesh Details ===');
+  gltf.scene.traverse(child => {
+    if (child.isMesh || child.isSkinnedMesh) {
+      lines.push(`\nMESH: "${child.name}" type=${child.type}`);
+      lines.push(`  Vertices: ${child.geometry.attributes.position?.count || 'N/A'}`);
+      if (child.geometry.morphAttributes && Object.keys(child.geometry.morphAttributes).length > 0) {
+        lines.push(`  MORPH TARGETS:`);
+        Object.keys(child.geometry.morphAttributes).forEach(key => {
+          lines.push(`    - ${key}: ${child.geometry.morphAttributes[key].length} targets`);
+        });
+        if (child.morphTargetDictionary) {
+          lines.push(`  Morph Dict: ${JSON.stringify(child.morphTargetDictionary)}`);
+        }
+      }
+      if (child.material) {
+        const m = child.material;
+        lines.push(`  Material: ${m.name || m.type}`);
+        lines.push(`    Color: ${m.color ? '#' + m.color.getHexString() : 'N/A'}`);
+        lines.push(`    Map: ${m.map ? 'YES' : 'NO'}, NormalMap: ${m.normalMap ? 'YES' : 'NO'}`);
+        lines.push(`    Roughness: ${m.roughness}, Metalness: ${m.metalness}`);
+      }
+    }
+  });
+
+  // Animations
+  if (gltf.animations && gltf.animations.length > 0) {
+    lines.push(`\n=== Animations: ${gltf.animations.length} ===`);
+    gltf.animations.forEach((anim, i) => {
+      lines.push(`  [${i}] "${anim.name}" duration=${anim.duration}s tracks=${anim.tracks.length}`);
+      anim.tracks.slice(0, 10).forEach(t => {
+        lines.push(`    Track: ${t.name} (${t.ValueTypeName}) keys=${t.times.length}`);
+      });
+      if (anim.tracks.length > 10) lines.push(`    ... and ${anim.tracks.length - 10} more tracks`);
+    });
+  } else {
+    lines.push('\nAnimations: NONE');
+  }
+
+  document.getElementById('output').textContent = lines.join('\n');
+}, (xhr) => {
+  if (xhr.total) {
+    const pct = Math.round(xhr.loaded / xhr.total * 100);
+    document.getElementById('output').textContent = `Loading: ${pct}%`;
+  }
+}, (err) => {
+  document.getElementById('output').textContent = 'Error: ' + err.message;
+});
+</script>
+</body></html>
